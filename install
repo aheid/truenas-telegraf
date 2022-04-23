@@ -15,11 +15,11 @@ import urllib.error
 import urllib.request
 
 if platform.machine() == "amd64":
-  download = "https://dl.influxdata.com/telegraf/releases/telegraf-1.18.3_freebsd_amd64.tar.gz"
-  signature = "8748c44857c85f52ce8f19673b1f14c6b330031311cd3bb7d55cd677223c2b0b"
+  download = "https://dl.influxdata.com/telegraf/releases/telegraf-1.22.1_freebsd_amd64.tar.gz"
+  signature = "deb942eb3b9e26e4279bbf1220eb34a359df34e63d2ae40fa03198177613faba"
 else:
-  download = "https://dl.influxdata.com/telegraf/releases/telegraf-1.18.3_freebsd_i386.tar.gz"
-  signature = "1fbbb062c79ae8e79799769873ced251a8354caf0b1eb10798724a0c64408c89"
+  download = "https://dl.influxdata.com/telegraf/releases/telegraf-1.22.1_freebsd_i386.tar.gz"
+  signature = "0da97f3420dd5790855dd51a83a88f63309d8664b86c8a396599c7ddf1d2d5b5"
 
 dir = pathlib.Path(__file__).parent.absolute()
 
@@ -31,8 +31,8 @@ def create_binary(blob):
   st = os.stat(path)
   os.chmod(path, st.st_mode | 0o111)
 
-def create_init_command(command, password, host="localhost", username="root"):
-  commands = do_request("http://%s/api/v2.0/initshutdownscript/" % host, method="GET", username=username, password=password)
+def create_init_command(command, api_key, host="localhost", username="root"):
+  commands = do_request("http://%s/api/v2.0/initshutdownscript/" % host, method="GET", api_key=api_key)
 
   for cmd in commands:
     if cmd["command"] == command:
@@ -48,10 +48,10 @@ def create_init_command(command, password, host="localhost", username="root"):
     "when": "POSTINIT",
   }
 
-  do_request("http://%s/api/v2.0/initshutdownscript/" % host, method="POST", data=json.dumps(payload).encode("ASCII"), content_type="application/json", username=username, password=password)
+  do_request("http://%s/api/v2.0/initshutdownscript/" % host, method="POST", data=json.dumps(payload).encode("ASCII"), content_type="application/json", api_key=api_key)
 
-def do_request(url, username, password, data=None, method="GET", content_type=None):
-  auth = "Basic %s" % base64.b64encode(("%s:%s" % (username, password)).encode("ASCII")).decode("ASCII")
+def do_request(url, api_key, data=None, method="GET", content_type=None):
+  auth = "Bearer %s" % api_key
 
   req = urllib.request.Request("https://localhost/api/v2.0/initshutdownscript/", data=data, method=method)
   req.add_header("Authorization", auth)
@@ -63,7 +63,7 @@ def do_request(url, username, password, data=None, method="GET", content_type=No
     res = urllib.request.urlopen(req, context=ssl._create_unverified_context())
   except urllib.error.HTTPError as err:
     if err.code == 401:
-      print_msg("Wrong password")
+      print_msg("Wrong API key")
       return
     elif err.code == 500:
       print_msg("Server error")
@@ -106,14 +106,14 @@ try:
 except FileExistsError:
   print_msg("%s symlink already exists" % rc_file)
 
-print_msg("Creating init command, you need to enter the password for the root user. If you don't want to do this, press Ctrl+C or enter a blank password")
+print_msg("Creating init command, you need to enter a valid API key. If you don't want to do this, press Ctrl+C or enter a blank key")
 
 try:
-  password = getpass.getpass("root password: ")
-  if password == "":
+  api_key = getpass.getpass("API key: ")
+  if api_key == "":
     print_msg(manual_msg)
   else:
-    create_init_command(command, password)
+    create_init_command(command, api_key)
 except KeyboardInterrupt:
   print_msg("\n%s" % manual_msg)
 
